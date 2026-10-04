@@ -65,7 +65,37 @@ function spawnEnemy(x,type){const cfg={slime:[48,36,38,1,1.35],pinkslime:[48,36,
 function start(){initAudio();reset();running=true;titleScreen.classList.add('hidden');resultScreen.classList.add('hidden');hud.classList.remove('hidden');controls.classList.remove('hidden');last=performance.now();requestAnimationFrame(loop)}
 function finish(won){if(won)sfxClear();running=false;controls.classList.add('hidden');resultScreen.classList.remove('hidden');$('result-title').textContent=won?'STAGE CLEAR!':'GAME OVER';$('result-text').textContent=won?`敵を ${defeated} 体撃破！　スコア：${String(score).padStart(5,'0')}`:`スコア：${String(score).padStart(5,'0')}　もう一度チャレンジ！`}
 $('start-button').addEventListener('click',start);$('restart-button').addEventListener('click',start);
-for(const b of document.querySelectorAll('[data-control]')){const key=b.dataset.control;const down=e=>{e.preventDefault();keys[key]=true;b.classList.add('pressed');if(key==='jump')requestJump();if(key==='attack')doAttack()};const up=e=>{e.preventDefault();keys[key]=false;b.classList.remove('pressed')};b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up)}
+
+// Mobile touch controls: prevent long-press menus and keep each finger
+// captured by its button so pointerup/cancel is reliably received.
+function releaseAllControls(){
+  for(const b of document.querySelectorAll('[data-control]')) b.classList.remove('pressed');
+  keys.left=false;keys.right=false;keys.jump=false;keys.attack=false;
+}
+for(const b of document.querySelectorAll('[data-control]')){
+  const key=b.dataset.control;
+  let activePointerId=null;
+  const release=e=>{
+    if(activePointerId!==null&&e.pointerId!==undefined&&e.pointerId!==activePointerId)return;
+    keys[key]=false;b.classList.remove('pressed');activePointerId=null;
+    if(e.cancelable)e.preventDefault();
+  };
+  b.addEventListener('pointerdown',e=>{
+    if(activePointerId!==null)return;
+    e.preventDefault();activePointerId=e.pointerId;keys[key]=true;b.classList.add('pressed');
+    if(b.setPointerCapture)try{b.setPointerCapture(e.pointerId)}catch(_){}
+    if(key==='jump')requestJump();if(key==='attack')doAttack();
+  },{passive:false});
+  b.addEventListener('pointerup',release,{passive:false});
+  b.addEventListener('pointercancel',release,{passive:false});
+  b.addEventListener('lostpointercapture',()=>{if(activePointerId!==null){keys[key]=false;b.classList.remove('pressed');activePointerId=null;}});
+  b.addEventListener('contextmenu',e=>e.preventDefault());
+  b.addEventListener('selectstart',e=>e.preventDefault());
+}
+addEventListener('blur',releaseAllControls);
+addEventListener('pagehide',releaseAllControls);
+addEventListener('visibilitychange',()=>{if(document.hidden)releaseAllControls()});
+
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(['arrowleft','arrowright','arrowup',' ','z','x','a','d','w'].includes(k))e.preventDefault();if(k==='arrowleft'||k==='a')keys.left=true;if(k==='arrowright'||k==='d')keys.right=true;if(!e.repeat&&(k==='arrowup'||k==='w'||k===' '))requestJump();if(!e.repeat&&(k==='z'||k==='x'))doAttack()});
 addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(k==='arrowleft'||k==='a')keys.left=false;if(k==='arrowright'||k==='d')keys.right=false});
 function requestJump(){if(!running)return;jumpBuffer=.16;if(player.onGround||coyoteTime>0)performJump()}
